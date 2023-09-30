@@ -86,41 +86,34 @@ bool do_exec(int count, ...)
         va_end(args);
         return false;
 
-    } else if (pid == 0){
+    } else if (pid == 0){ 
         // Child process    
-        if (execv(command[0], command) == -1) {
-            // execv shouldn't return, if it does, log the error
-            openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
-            syslog(LOG_ERR, "execv failed: %m");
-            closelog();
-            va_end(args);
-            // Terminate child
-            return false;
-        };
+        execv(command[0], command);
+        // execv shouldn't return, if it does, there is an error
+        openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
+        syslog(LOG_ERR, "execv failed: %m");
+        closelog();
+        va_end(args);
+        // Terminate child
+        return false;
+
     } else {
         // Parent process
+        int status;
+        pid = waitpid(pid, &status, 0);
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
         syslog(LOG_INFO, "Child process created with pid: %d", pid);
         closelog();
 
-        int status;
-        waitpid(pid, &status, 0);
-  
-        va_end(args);
-
-        if (WIFEXITED(status)) {
-            // Child exited normally
-            if (WEXITSTATUS(status) == 0) {
-                // Child exited with success
-                return true;
-            } else {
-                // Child exited with failure
-                return false;
-            }
-        } else {
-            // Child exited abnormally
+        if (pid == -1){
+            openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
+            syslog(LOG_ERR, "waitpid failed: %m");
+            closelog();
+            va_end(args);
             return false;
         }
+
+        return (status==0);
     }
     va_end(args);
     return false;
@@ -201,41 +194,34 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         va_end(args);
         return false;
 
-    } else if (pid == 0){
+    } else if (pid == 0){ 
         // Child process    
-        if (execv(command[0], command) == -1) {
-            // execv shouldn't return, if it does, log the error
-            openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
-            syslog(LOG_ERR, "execv failed: %m");
-            closelog();
-            va_end(args);
-            // Terminate child
-            return false;
-        };
+        execv(command[0], command);
+        // execv shouldn't return, if it does, there is an error
+        openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
+        syslog(LOG_ERR, "execv failed: %m");
+        closelog();
+        va_end(args);
+        // Terminate child
+        return false;
+
     } else {
         // Parent process
+        int status;
+        pid = waitpid(pid, &status, 0);
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
         syslog(LOG_INFO, "Child process created with pid: %d", pid);
         closelog();
 
-        int status;
-        waitpid(pid, &status, 0);
-  
-        va_end(args);
-
-        if (WIFEXITED(status)) {
-            // Child exited normally
-            if (WEXITSTATUS(status) == 0) {
-                // Child exited with success
-                return true;
-            } else {
-                // Child exited with failure
-                return false;
-            }
-        } else {
-            // Child exited abnormally
+        if (pid == -1){
+            openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
+            syslog(LOG_ERR, "waitpid failed: %m");
+            closelog();
+            va_end(args);
             return false;
         }
+
+        return (status==0);
     }
     va_end(args);
     return false;
