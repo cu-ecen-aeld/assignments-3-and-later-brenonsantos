@@ -20,9 +20,10 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-    int ret = system(cmd);
-    if (ret == -1) return false;
-    return true;
+    if (!cmd){
+        return false;
+    }
+    return (system(cmd) == 0);
 }
 
 /**
@@ -77,7 +78,8 @@ bool do_exec(int count, ...)
     }
 
     int pid = fork();
-    fflush(stdout);
+    int status;
+
     if (pid == -1){
         // fork failed
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
@@ -90,22 +92,21 @@ bool do_exec(int count, ...)
         // Child process    
         execv(command[0], command);
         // execv shouldn't return, if it does, there is an error
+
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
         syslog(LOG_ERR, "execv failed: %m");
         closelog();
         va_end(args);
-        // Terminate child
         return false;
 
     } else {
         // Parent process
-        int status;
-        pid = waitpid(pid, &status, 0);
+        int pid_wait = wait(&status);
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
-        syslog(LOG_INFO, "Child process created with pid: %d", pid);
+        syslog(LOG_INFO, "Child process created with pid: %d", pid_wait);
         closelog();
 
-        if (pid == -1){
+        if (pid_wait == -1){
             openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
             syslog(LOG_ERR, "waitpid failed: %m");
             closelog();
@@ -171,21 +172,9 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         return false;
     }
 
-    // Redirect stdout to file
-    if (dup2(fd, STDOUT_FILENO) == -1) {
-        // Redirect stdout failed
-        openlog("systemcalls", LOG_PID | LOG_CONS, LOG_USER);
-        syslog(LOG_ERR, "stdout redirect failed: %m");
-        printf("stdout redirect failed: %m");
-        close(fd); // Close the file descriptor before returning
-        closelog();
-        va_end(args);
-        return false;
-    }
-    close(fd);
-
     int pid = fork();
-    fflush(stdout);
+    int status;
+
     if (pid == -1){
         // fork failed
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
@@ -196,24 +185,26 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 
     } else if (pid == 0){ 
         // Child process    
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
         execv(command[0], command);
         // execv shouldn't return, if it does, there is an error
+
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
         syslog(LOG_ERR, "execv failed: %m");
         closelog();
         va_end(args);
-        // Terminate child
         return false;
 
     } else {
         // Parent process
-        int status;
-        pid = waitpid(pid, &status, 0);
+        close(fd);
+        int pid_wait = wait(&status);
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
-        syslog(LOG_INFO, "Child process created with pid: %d", pid);
+        syslog(LOG_INFO, "Child process created with pid: %d", pid_wait);
         closelog();
 
-        if (pid == -1){
+        if (pid_wait == -1){
             openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
             syslog(LOG_ERR, "waitpid failed: %m");
             closelog();
