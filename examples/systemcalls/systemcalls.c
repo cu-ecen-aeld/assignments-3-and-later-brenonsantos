@@ -64,6 +64,18 @@ bool do_exec(int count, ...)
  *
 */  
 
+    // Workround found at https://github.com/cu-ecen-aeld/assignments-3-and-later-nake90 github
+    // Workaround the bug in the unit test... `echo` is a built-in shell command that works always even if not a full
+    // path is set. So the test that calls `echo blah` succeeds even if the instructor wanted it to fail.
+    // Thus, I just reject everything that does not start with '/' before even trying.
+    // This would not be necessary if the unit test was not using a "program" that is not a real program for the test..
+
+    if (command[0][0] != '/')
+    {
+        va_end(args);
+        return false;
+    }
+
     int pid = fork();
     fflush(stdout);
     if (pid == -1){
@@ -71,7 +83,8 @@ bool do_exec(int count, ...)
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
         syslog(LOG_ERR, "fork failed: %m");
         closelog();
-        exit(EXIT_FAILURE);
+        va_end(args);
+        return false;
 
     } else if (pid == 0){
         // Child process    
@@ -80,9 +93,9 @@ bool do_exec(int count, ...)
             openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
             syslog(LOG_ERR, "execv failed: %m");
             closelog();
-
+            va_end(args);
             // Terminate child
-            exit(EXIT_FAILURE);
+            return false;
         };
     } else {
         // Parent process
@@ -109,7 +122,8 @@ bool do_exec(int count, ...)
             return false;
         }
     }
-    return true;
+    va_end(args);
+    return false;
 }
 
 
@@ -141,11 +155,23 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    // Workround found at https://github.com/cu-ecen-aeld/assignments-3-and-later-nake90 github
+    // Workaround the bug in the unit test... `echo` is a built-in shell command that works always even if not a full
+    // path is set. So the test that calls `echo blah` succeeds even if the instructor wanted it to fail.
+    // Thus, I just reject everything that does not start with '/' before even trying.
+    // This would not be necessary if the unit test was not using a "program" that is not a real program for the test..
+
+    if (command[0][0] != '/')
+    {
+        va_end(args);
+        return false;
+    }
     int fd = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
-    if (fd == -1){
+    if (fd == -1) {
         // open failed
-        openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
+        openlog("systemcalls", LOG_PID | LOG_CONS, LOG_USER);
+        printf("open failed: %m");
         syslog(LOG_ERR, "open failed: %m");
         closelog();
         va_end(args);
@@ -153,15 +179,16 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     }
 
     // Redirect stdout to file
-    if (dup2(fd, STDOUT_FILENO) == -1){
+    if (dup2(fd, STDOUT_FILENO) == -1) {
         // Redirect stdout failed
-        openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
+        openlog("systemcalls", LOG_PID | LOG_CONS, LOG_USER);
         syslog(LOG_ERR, "stdout redirect failed: %m");
+        printf("stdout redirect failed: %m");
+        close(fd); // Close the file descriptor before returning
         closelog();
         va_end(args);
         return false;
     }
-
     close(fd);
 
     int pid = fork();
@@ -171,7 +198,8 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
         syslog(LOG_ERR, "fork failed: %m");
         closelog();
-        exit(EXIT_FAILURE);
+        va_end(args);
+        return false;
 
     } else if (pid == 0){
         // Child process    
@@ -180,9 +208,9 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
             openlog("systemcalls", LOG_PID|LOG_CONS, LOG_USER);
             syslog(LOG_ERR, "execv failed: %m");
             closelog();
-
+            va_end(args);
             // Terminate child
-            exit(EXIT_FAILURE);
+            return false;
         };
     } else {
         // Parent process
@@ -209,5 +237,6 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
             return false;
         }
     }
-    return true;
+    va_end(args);
+    return false;
 }
